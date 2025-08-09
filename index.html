@@ -51,6 +51,19 @@
         .task-item:hover {
             background-color: #f9fafb;
         }
+        .device-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .device-online {
+            background-color: #10B981;
+        }
+        .device-offline {
+            background-color: #EF4444;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen font-sans">
@@ -98,17 +111,25 @@
                 <div class="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div>
                         <h1 class="text-2xl font-bold">Admin Panel</h1>
-                        <p class="text-sm opacity-80">List Account</p>
+                        <p class="text-sm opacity-80">List Account | Terakhir diperbarui: {{ lastUpdated }}</p>
                     </div>
-                    <button @click="logout" class="px-3 py-1 bg-white text-blue-600 rounded-md text-sm font-medium hover:bg-blue-50 transition">
-                        Logout
-                    </button>
+                    <div class="flex items-center space-x-4">
+                        <button @click="syncAllDevices" class="px-3 py-1 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Sync
+                        </button>
+                        <button @click="logout" class="px-3 py-1 bg-white text-blue-600 rounded-md text-sm font-medium hover:bg-blue-50 transition">
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </header>
 
             <main class="container mx-auto px-4 py-6">
                 <!-- User Statistics -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <div class="bg-white rounded-lg shadow-md p-4">
                         <h3 class="text-sm font-medium text-gray-500">Total Pengguna</h3>
                         <p class="text-2xl font-bold text-gray-800">{{ users.length }}</p>
@@ -121,11 +142,55 @@
                         <h3 class="text-sm font-medium text-gray-500">Tugas Selesai</h3>
                         <p class="text-2xl font-bold text-gray-800">{{ completedTasksPercentage }}%</p>
                     </div>
+                    <div class="bg-white rounded-lg shadow-md p-4">
+                        <h3 class="text-sm font-medium text-gray-500">Device Terhubung</h3>
+                        <p class="text-2xl font-bold text-gray-800">{{ activeDevicesCount }} / {{ devices.length }}</p>
+                    </div>
+                </div>
+
+                <!-- Device List -->
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Daftar Device</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Device</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Terakhir Aktif</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pengguna</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="device in devices" :key="device.id">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ device.id }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span class="device-status" :class="isDeviceOnline(device) ? 'device-online' : 'device-offline'"></span>
+                                        {{ isDeviceOnline(device) ? 'Online' : 'Offline' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ formatDate(device.lastSynced) }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ device.users ? device.users.length : 0 }} pengguna
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <button @click="syncDevice(device.id)" class="text-blue-600 hover:text-blue-800 mr-3">Sync</button>
+                                        <button @click="viewDeviceUsers(device.id)" class="text-green-600 hover:text-green-800">Lihat</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- User List -->
                 <div class="bg-white rounded-lg shadow-md p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Daftar Pengguna</h2>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800">Daftar Pengguna</h2>
+                        <div class="flex items-center">
+                            <input v-model="userSearch" type="text" placeholder="Cari pengguna..." class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                    </div>
                     
                     <div class="user-list-container">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -135,12 +200,13 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Device</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tugas</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="user in users" :key="user.id">
+                                <tr v-for="user in filteredUsers" :key="user.id">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ user.name }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.username }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.email }}</td>
@@ -159,6 +225,13 @@
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <span v-if="user.deviceId" class="inline-flex items-center">
+                                            <span class="device-status" :class="isDeviceOnline(getDevice(user.deviceId)) ? 'device-online' : 'device-offline'"></span>
+                                            {{ user.deviceId }}
+                                        </span>
+                                        <span v-else class="text-gray-400">-</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {{ getUserTaskCount(user.id) }} ({{ getUserCompletedTaskCount(user.id) }} selesai)
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -170,11 +243,11 @@
                             </tbody>
                         </table>
                         
-                        <div v-if="users.length === 0" class="text-center py-8 text-gray-500">
+                        <div v-if="filteredUsers.length === 0" class="text-center py-8 text-gray-500">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
-                            <p class="mt-2">Belum ada pengguna terdaftar.</p>
+                            <p class="mt-2">Tidak ada pengguna yang cocok dengan pencarian Anda.</p>
                         </div>
                     </div>
                 </div>
@@ -296,6 +369,60 @@
             </div>
         </transition>
         
+        <!-- Device Users Modal -->
+        <transition name="fade">
+            <div v-if="showDeviceUsersModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-xl p-6 max-w-2xl w-full max-h-screen overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Pengguna pada Device {{ selectedDevice.id }}</h3>
+                        <button @click="showDeviceUsersModal = false" class="text-gray-500 hover:text-gray-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <p><strong>Status:</strong> 
+                            <span class="device-status" :class="isDeviceOnline(selectedDevice) ? 'device-online' : 'device-offline'"></span>
+                            {{ isDeviceOnline(selectedDevice) ? 'Online' : 'Offline' }}
+                        </p>
+                        <p><strong>Terakhir Sync:</strong> {{ formatDateTime(selectedDevice.lastSynced) }}</p>
+                        <p><strong>Total Pengguna:</strong> {{ selectedDevice.users ? selectedDevice.users.length : 0 }}</p>
+                    </div>
+                    
+                    <div class="overflow-x-auto" v-if="selectedDevice.users && selectedDevice.users.length > 0">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tugas</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="user in selectedDevice.users" :key="user.id">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ user.name }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.username }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ user.email }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ getUserTaskCount(user.id) }} ({{ getUserCompletedTaskCount(user.id) }} selesai)
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else class="text-center py-8 text-gray-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <p class="mt-2">Tidak ada pengguna pada device ini.</p>
+                    </div>
+                </div>
+            </div>
+        </transition>
+        
         <!-- Notification -->
         <transition name="notification">
             <div v-if="showNotification" class="fixed bottom-4 right-4 px-6 py-4 rounded-lg shadow-lg font-medium text-white z-50" :class="notificationClass">
@@ -313,17 +440,22 @@
                     adminUsername: '',
                     adminPassword: '',
                     showPassword: false,
-                    users: JSON.parse(localStorage.getItem('taskManagerUsers')) || [],
-                    allTasks: JSON.parse(localStorage.getItem('userTasks')) || [],
+                    users: [],
+                    allTasks: [],
+                    devices: [],
+                    userSearch: '',
+                    showDeviceUsersModal: false,
+                    selectedDevice: { users: [] },
+                    lastUpdated: new Date().toLocaleString(),
                     showUserTasksModal: false,
-                    selectedUser: null,
+                    selectedUser: {},
                     userTasks: [],
                     showDeleteModal: false,
-                    userToDelete: null,
+                    userToDelete: {},
                     showDeleteTaskModal: false,
-                    taskToDelete: null,
+                    taskToDelete: {},
                     showResetModal: false,
-                    userToReset: null,
+                    userToReset: {},
                     newPassword: '',
                     confirmNewPassword: '',
                     showNotification: false,
@@ -339,20 +471,27 @@
                 completedTasksPercentage() {
                     const completed = this.allTasks.filter(t => t.completed).length;
                     return this.totalTasks > 0 ? Math.round((completed / this.totalTasks) * 100) : 0;
+                },
+                activeDevicesCount() {
+                    return this.devices.filter(d => this.isDeviceOnline(d)).length;
+                },
+                filteredUsers() {
+                    if (!this.userSearch) return this.users;
+                    const searchTerm = this.userSearch.toLowerCase();
+                    return this.users.filter(user => 
+                        (user.name && user.name.toLowerCase().includes(searchTerm)) ||
+                        (user.username && user.username.toLowerCase().includes(searchTerm)) ||
+                        (user.email && user.email.toLowerCase().includes(searchTerm))
+                    );
                 }
             },
             created() {
-                // Check if already logged in
                 const adminLoggedIn = localStorage.getItem('adminLoggedIn');
                 if (adminLoggedIn === 'true') {
                     this.isLoggedIn = true;
+                    this.loadAllData();
+                    this.setupAutoRefresh();
                 }
-                
-                // Add showPassword property to each user
-                this.users = this.users.map(user => ({
-                    ...user,
-                    showPassword: false
-                }));
             },
             methods: {
                 login() {
@@ -361,6 +500,8 @@
                         localStorage.setItem('adminLoggedIn', 'true');
                         this.showNotification('Login admin berhasil!', 'bg-green-500');
                         this.adminPassword = '';
+                        this.loadAllData();
+                        this.setupAutoRefresh();
                     } else {
                         this.showNotification('Username atau password admin salah', 'bg-red-500');
                     }
@@ -370,6 +511,126 @@
                     this.isLoggedIn = false;
                     localStorage.removeItem('adminLoggedIn');
                     this.showNotification('Anda telah logout', 'bg-blue-500');
+                },
+                
+                loadAllData() {
+                    try {
+                        // Load from localStorage (simulated cloud)
+                        const cloudData = JSON.parse(localStorage.getItem('taskManagerCloudData')) || {};
+                        
+                        // Load devices
+                        this.devices = cloudData.devices || [];
+                        
+                        // Load users from all devices
+                        this.users = [];
+                        this.devices.forEach(device => {
+                            if (device.users) {
+                                // Add device ID to each user
+                                const usersWithDevice = device.users.map(user => ({
+                                    ...user,
+                                    deviceId: device.id,
+                                    showPassword: false
+                                }));
+                                this.users = [...this.users, ...usersWithDevice];
+                            }
+                        });
+                        
+                        // Also load from current localStorage (for admin device)
+                        const localUsers = JSON.parse(localStorage.getItem('taskManagerUsers')) || [];
+                        const localTasks = JSON.parse(localStorage.getItem('userTasks')) || [];
+                        
+                        // Add admin device if not exists
+                        const adminDeviceExists = this.devices.some(d => d.id === 'admin-device');
+                        if (!adminDeviceExists) {
+                            this.devices.push({
+                                id: 'admin-device',
+                                lastSynced: new Date().toISOString(),
+                                users: localUsers
+                            });
+                        }
+                        
+                        // Merge users
+                        const localUsersWithDevice = localUsers.map(user => ({
+                            ...user,
+                            deviceId: 'admin-device',
+                            showPassword: false
+                        }));
+                        this.users = [...this.users, ...localUsersWithDevice];
+                        
+                        // Load tasks
+                        this.allTasks = cloudData.tasks || [];
+                        this.allTasks = [...this.allTasks, ...localTasks];
+                        
+                        // Remove duplicates
+                        this.users = this.removeDuplicates(this.users, 'id');
+                        this.allTasks = this.removeDuplicates(this.allTasks, 'id');
+                        
+                        this.lastUpdated = new Date().toLocaleString();
+                    } catch (e) {
+                        console.error('Error loading data:', e);
+                        this.showNotification('Gagal memuat data', 'bg-red-500');
+                    }
+                },
+                
+                removeDuplicates(array, key) {
+                    return array.filter((item, index, self) =>
+                        index === self.findIndex(t => t[key] === item[key])
+                    );
+                },
+                
+                setupAutoRefresh() {
+                    // Refresh data every 30 seconds
+                    this.refreshInterval = setInterval(() => {
+                        if (this.isLoggedIn) {
+                            this.loadAllData();
+                        }
+                    }, 30000);
+                },
+                
+                syncAllDevices() {
+                    // Simulate syncing with all devices
+                    this.showNotification('Memulai sinkronisasi dengan semua device...', 'bg-blue-500');
+                    
+                    // In a real app, this would call an API to sync with each device
+                    setTimeout(() => {
+                        this.loadAllData();
+                        this.showNotification('Sinkronisasi selesai', 'bg-green-500');
+                    }, 1500);
+                },
+                
+                syncDevice(deviceId) {
+                    // Simulate syncing with a specific device
+                    this.showNotification(`Menyinkronkan device ${deviceId}...`, 'bg-blue-500');
+                    
+                    setTimeout(() => {
+                        const device = this.devices.find(d => d.id === deviceId);
+                        if (device) {
+                            device.lastSynced = new Date().toISOString();
+                            this.showNotification(`Device ${deviceId} berhasil disinkronkan`, 'bg-green-500');
+                            this.lastUpdated = new Date().toLocaleString();
+                        }
+                    }, 1000);
+                },
+                
+                isDeviceOnline(device) {
+                    if (!device || !device.lastSynced) return false;
+                    try {
+                        const lastSynced = new Date(device.lastSynced);
+                        const now = new Date();
+                        return (now - lastSynced) < 5 * 60 * 1000; // 5 minutes threshold
+                    } catch (e) {
+                        console.error('Error checking device status:', e);
+                        return false;
+                    }
+                },
+                
+                getDevice(deviceId) {
+                    return this.devices.find(d => d.id === deviceId) || {};
+                },
+                
+                viewDeviceUsers(deviceId) {
+                    this.selectedDevice = this.devices.find(d => d.id === deviceId) || { users: [] };
+                    this.showDeviceUsersModal = true;
                 },
                 
                 toggleShowPassword(user) {
@@ -408,24 +669,44 @@
                         return;
                     }
                     
-                    // Update user password
-                    const userIndex = this.users.findIndex(u => u.id === this.userToReset.id);
-                    if (userIndex !== -1) {
-                        // Create new user object with updated password
-                        const updatedUser = {
-                            ...this.users[userIndex],
-                            password: this.newPassword,
-                            showPassword: false
-                        };
-                        
-                        // Update the users array
-                        this.users.splice(userIndex, 1, updatedUser);
-                        
-                        // Save to localStorage
-                        localStorage.setItem('taskManagerUsers', JSON.stringify(this.users));
-                        
-                        this.showResetModal = false;
-                        this.showNotification('Password berhasil direset', 'bg-green-500');
+                    try {
+                        // Update user password
+                        const userIndex = this.users.findIndex(u => u.id === this.userToReset.id);
+                        if (userIndex !== -1) {
+                            // Create new user object with updated password
+                            const updatedUser = {
+                                ...this.users[userIndex],
+                                password: this.newPassword,
+                                showPassword: false
+                            };
+                            
+                            // Update the users array
+                            this.users.splice(userIndex, 1, updatedUser);
+                            
+                            // Update in devices
+                            this.devices.forEach(device => {
+                                if (device.users) {
+                                    const deviceUserIndex = device.users.findIndex(u => u.id === this.userToReset.id);
+                                    if (deviceUserIndex !== -1) {
+                                        device.users[deviceUserIndex].password = this.newPassword;
+                                    }
+                                }
+                            });
+                            
+                            // Save to localStorage
+                            localStorage.setItem('taskManagerUsers', JSON.stringify(this.users.filter(u => u.deviceId === 'admin-device')));
+                            
+                            // Update cloud data
+                            const cloudData = JSON.parse(localStorage.getItem('taskManagerCloudData')) || {};
+                            cloudData.devices = this.devices;
+                            localStorage.setItem('taskManagerCloudData', JSON.stringify(cloudData));
+                            
+                            this.showResetModal = false;
+                            this.showNotification('Password berhasil direset', 'bg-green-500');
+                        }
+                    } catch (e) {
+                        console.error('Error resetting password:', e);
+                        this.showNotification('Gagal mereset password', 'bg-red-500');
                     }
                 },
                 
@@ -435,20 +716,41 @@
                 },
                 
                 deleteUser() {
-                    // Remove user
-                    this.users = this.users.filter(u => u.id !== this.userToDelete.id);
-                    localStorage.setItem('taskManagerUsers', JSON.stringify(this.users));
-                    
-                    // Remove user's tasks
-                    this.allTasks = this.allTasks.filter(task => task.userId !== this.userToDelete.id);
-                    localStorage.setItem('userTasks', JSON.stringify(this.allTasks));
-                    
-                    this.showDeleteModal = false;
-                    this.showNotification('Pengguna berhasil dihapus', 'bg-green-500');
-                    
-                    // Close user tasks modal if open for this user
-                    if (this.showUserTasksModal && this.selectedUser.id === this.userToDelete.id) {
-                        this.showUserTasksModal = false;
+                    try {
+                        // Remove user
+                        this.users = this.users.filter(u => u.id !== this.userToDelete.id);
+                        
+                        // Remove user's tasks
+                        this.allTasks = this.allTasks.filter(task => task.userId !== this.userToDelete.id);
+                        
+                        // Update in devices
+                        this.devices.forEach(device => {
+                            if (device.users) {
+                                device.users = device.users.filter(u => u.id !== this.userToDelete.id);
+                                device.lastSynced = new Date().toISOString();
+                            }
+                        });
+                        
+                        // Save to localStorage
+                        localStorage.setItem('taskManagerUsers', JSON.stringify(this.users.filter(u => u.deviceId === 'admin-device')));
+                        localStorage.setItem('userTasks', JSON.stringify(this.allTasks.filter(t => t.deviceId === 'admin-device')));
+                        
+                        // Update cloud data
+                        const cloudData = JSON.parse(localStorage.getItem('taskManagerCloudData')) || {};
+                        cloudData.devices = this.devices;
+                        cloudData.tasks = this.allTasks;
+                        localStorage.setItem('taskManagerCloudData', JSON.stringify(cloudData));
+                        
+                        this.showDeleteModal = false;
+                        this.showNotification('Pengguna berhasil dihapus', 'bg-green-500');
+                        
+                        // Close user tasks modal if open for this user
+                        if (this.showUserTasksModal && this.selectedUser.id === this.userToDelete.id) {
+                            this.showUserTasksModal = false;
+                        }
+                    } catch (e) {
+                        console.error('Error deleting user:', e);
+                        this.showNotification('Gagal menghapus pengguna', 'bg-red-500');
                     }
                 },
                 
@@ -458,29 +760,65 @@
                 },
                 
                 deleteTask() {
-                    // Remove the task
-                    this.allTasks = this.allTasks.filter(t => t.id !== this.taskToDelete.id);
-                    localStorage.setItem('userTasks', JSON.stringify(this.allTasks));
-                    
-                    // Update the user tasks list
-                    this.userTasks = this.userTasks.filter(t => t.id !== this.taskToDelete.id);
-                    
-                    this.showDeleteTaskModal = false;
-                    this.showNotification('Tugas berhasil dihapus', 'bg-green-500');
+                    try {
+                        // Remove the task
+                        this.allTasks = this.allTasks.filter(t => t.id !== this.taskToDelete.id);
+                        
+                        // Update cloud data
+                        const cloudData = JSON.parse(localStorage.getItem('taskManagerCloudData')) || {};
+                        cloudData.tasks = this.allTasks;
+                        localStorage.setItem('taskManagerCloudData', JSON.stringify(cloudData));
+                        
+                        // Update the user tasks list
+                        this.userTasks = this.userTasks.filter(t => t.id !== this.taskToDelete.id);
+                        
+                        this.showDeleteTaskModal = false;
+                        this.showNotification('Tugas berhasil dihapus', 'bg-green-500');
+                    } catch (e) {
+                        console.error('Error deleting task:', e);
+                        this.showNotification('Gagal menghapus tugas', 'bg-red-500');
+                    }
                 },
                 
                 formatDate(dateString) {
                     if (!dateString) return '';
-                    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-                    return new Date(dateString).toLocaleDateString('id-ID', options);
+                    try {
+                        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+                        return new Date(dateString).toLocaleDateString('id-ID', options);
+                    } catch (e) {
+                        console.error('Error formatting date:', e);
+                        return dateString;
+                    }
+                },
+                
+                formatDateTime(dateString) {
+                    if (!dateString) return '';
+                    try {
+                        const options = { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        };
+                        return new Date(dateString).toLocaleDateString('id-ID', options);
+                    } catch (e) {
+                        console.error('Error formatting date time:', e);
+                        return dateString;
+                    }
                 },
                 
                 isOverdue(dateString) {
                     if (!dateString) return false;
-                    const dueDate = new Date(dateString);
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    return dueDate < today;
+                    try {
+                        const dueDate = new Date(dateString);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return dueDate < today;
+                    } catch (e) {
+                        console.error('Error checking overdue:', e);
+                        return false;
+                    }
                 },
                 
                 showNotification(message, colorClass) {
@@ -503,6 +841,11 @@
                             this.showNotification = false;
                         }, 3000);
                     });
+                }
+            },
+            beforeDestroy() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
                 }
             }
         });
